@@ -195,14 +195,14 @@ public:
 
       //  std::cout << "\n---" << data << "---\n";
 
-        ssize_t byte_sent = write(sock, buf.data(), buf.size());
-//        while (total_sent < buf.size()) {
-//            size_t bytes_to_send = std::min((size_t) CHUNK_N_BYTES, buf.size() - total_sent);
-//
-//            total_sent += byte_sent;
-//        }
 
-        return byte_sent;
+        while (total_sent < buf.size()) {
+            size_t bytes_to_send = std::min((size_t) CHUNK_N_BYTES, buf.size() - total_sent);
+            ssize_t byte_sent = write(sock, buf.data(), bytes_to_send);
+            total_sent += byte_sent;
+        }
+
+        return total_sent;
     }
 
     static ssize_t frame_from_proxy(int proxy_sock, std::map<int, std::vector<uint8_t>> &buf_map, Packet &packet) {
