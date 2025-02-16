@@ -202,12 +202,20 @@ int main(int argc, char *argv[]) {
                     fd_to_buf_map.insert(std::pair<int, std::vector<uint8_t>>(fd, std::vector<uint8_t>()));
                     Packet pck{};
 
+                    /*
+                    * TODO: REQUIRES FRAMING
+                    */
+
+                    // NIGGA NEEDS TO BE INTERPRETED FROM OUR CLIENT
                     ssize_t read_from_fd = BufferHandler::frame_from_proxy(fd, fd_to_buf_map, pck);
 
                     if (read_from_fd > 0) {
                         std::cout << "--- READ FROM PROXY " << fd << " : " << pck.m_message << std::endl;
                         // Writing to proxy!
                         std::vector<uint8_t> buf(pck.m_message.begin(), pck.m_message.end());
+
+
+                        // THIS NEEDS TO BE RAW HTTP REQUESTS BROTHER
                         ssize_t client_sent = BufferHandler::frame_to_proxy(buf, client_fd);
 
                         if (client_sent == -1) {
