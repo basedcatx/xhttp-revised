@@ -88,7 +88,7 @@ int main(int argc, char *argv[]) {
                     LogSystemError("proxy_sock()");
                 }
 
-                event.events = EPOLLIN;
+                event.events = EPOLLIN | EPOLLRDHUP | EPOLLHUP;
                 event.data.fd = client_fd;
 
                 if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, client_fd, &event) == -1) {
@@ -97,7 +97,7 @@ int main(int argc, char *argv[]) {
                     continue;
                 }
 
-                event.events = EPOLLIN;
+                event.events = EPOLLIN | EPOLLRDHUP | EPOLLHUP;
                 event.data.fd = proxy_sock;
                 if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, proxy_sock, &event) == -1) {
                     close(client_fd);
@@ -111,7 +111,9 @@ int main(int argc, char *argv[]) {
 
 
                 if (fcntl(proxy_sock, F_GETFD) == -1 && errno == EBADF) {
-                    std::cerr << "Proxy FD " << proxy_sock << " is already closed (bad file descriptor) before write! Client FD: " << client_fd << std::endl;
+                    std::cerr << "Proxy FD " << proxy_sock
+                              << " is already closed (bad file descriptor) before write! Client FD: " << client_fd
+                              << std::endl;
                     continue; // Skip the write attempt
                 }
 
@@ -124,34 +126,31 @@ int main(int argc, char *argv[]) {
                 int fd = events[i].data.fd;
 
                 if (clients_to_proxy_socks_map.count(fd)) {
-
                     int proxy_fd = clients_to_proxy_socks_map.at(fd);
-
-                    uint8_t buf[BUFSIZ];
-                    std::memset(buf, 0, BUFSIZ);
-                    ssize_t read_from_fd = read(fd, buf, BUFSIZ);
+                    fd_to_buf_map.insert(std::pair<int, std::vector<uint8_t>>(fd, std::vector<uint8_t>()));
+                    Packet pck{};
+                    ssize_t read_from_fd = BufferHandler::frame_from_proxy(fd, fd_to_buf_map, pck);
 
                     if (read_from_fd > 0) {
-                        std::cout << "--- READ FROM CLIENT: " << fd << " : " << buf << std::endl;
+                        std::cout << "--- READ FROM CLIENT: " << fd << " : " << pck.m_message << std::endl;
 
                         if (fcntl(proxy_fd, F_GETFD) == -1 && errno == EBADF) {
-                            std::cerr << "Proxy FD " << proxy_fd << " is already closed (bad file descriptor) before write! Client FD: " << fd << std::endl;
+                            std::cerr << "Proxy FD " << proxy_fd
+                                      << " is already closed (bad file descriptor) before write! Client FD: " << fd
+                                      << std::endl;
                             continue; // Skip the write attempt
                         }
 
                         // Writing to proxy!
-                        ssize_t proxy_sent = write(proxy_fd, buf, read_from_fd);
+                        std::vector<uint8_t> temp(pck.m_message.begin(), pck.m_message.end());
+                        ssize_t proxy_sent = BufferHandler::frame_to_proxy(temp, proxy_fd);
 
                         if (proxy_sent == -1) {
 
                             if (errno == EAGAIN || errno == EWOULDBLOCK) {
 
-                                std::vector<uint8_t> temp;
-                                temp.reserve(BUFSIZ);
-                                std::memcpy(temp.data(), buf, BUFSIZ);
-                                fd_to_buf_map.insert(std::pair<int, std::vector<uint8_t>>(fd, temp));
                                 event.data.fd = proxy_fd;
-                                event.events = EPOLLIN | EPOLLOUT;
+                                event.events = EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLHUP;
                                 epoll_ctl(epoll_fd, EPOLL_CTL_MOD, proxy_fd, &event);
 
                             } else {
@@ -163,6 +162,7 @@ int main(int argc, char *argv[]) {
                                 proxy_socks_to_client_map.erase(fd);
                                 close(fd);
                                 close(proxy_fd);
+                                std::destroy(temp.begin(), temp.end());
                                 continue;
 
                             }
@@ -175,10 +175,12 @@ int main(int argc, char *argv[]) {
                             proxy_socks_to_client_map.erase(fd);
                             close(fd);
                             close(proxy_fd);
+                            std::destroy(temp.begin(), temp.end());
                             continue;
 
                         } else {
                             std::cout << "Successfully sent: " << proxy_sent << " to proxy\n";
+                            std::destroy(temp.begin(), temp.end());
                         }
                     } else {
                         std::cerr << "Something weird happened to client fd: " << fd << "\n";
@@ -197,25 +199,23 @@ int main(int argc, char *argv[]) {
                 if (proxy_socks_to_client_map.count(fd)) {
 
                     int client_fd = proxy_socks_to_client_map.at(fd);
+                    fd_to_buf_map.insert(std::pair<int, std::vector<uint8_t>>(fd, std::vector<uint8_t>()));
+                    Packet pck{};
 
-                    uint8_t buf[BUFSIZ];
-                    std::memset(buf, 0, BUFSIZ);
-                    ssize_t read_from_fd = read(fd, buf, BUFSIZ);
+                    ssize_t read_from_fd = BufferHandler::frame_from_proxy(fd, fd_to_buf_map, pck);
 
                     if (read_from_fd > 0) {
-                        std::cout << "--- READ FROM PROXY " << fd << " : " << buf << std::endl;
+                        std::cout << "--- READ FROM PROXY " << fd << " : " << pck.m_message << std::endl;
                         // Writing to proxy!
-                        ssize_t client_sent = write(client_fd, buf, read_from_fd);
+                        std::vector<uint8_t> buf(pck.m_message.begin(), pck.m_message.end());
+                        ssize_t client_sent = BufferHandler::frame_to_proxy(buf, client_fd);
 
                         if (client_sent == -1) {
                             if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                                std::vector<uint8_t> temp;
-                                temp.reserve(BUFSIZ);
-                                std::memcpy(temp.data(), buf, BUFSIZ);
-                                fd_to_buf_map.insert(std::pair<int, std::vector<uint8_t>>(fd, temp));
                                 event.data.fd = client_fd;
                                 event.events = EPOLLIN | EPOLLOUT;
                                 epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client_fd, &event);
+                                std::destroy(buf.begin(), buf.end());
                             } else {
                                 std::cout << "Something else occurred!\n";
                                 epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, nullptr);
@@ -224,6 +224,7 @@ int main(int argc, char *argv[]) {
                                 proxy_socks_to_client_map.erase(fd);
                                 close(fd);
                                 close(client_fd);
+                                std::destroy(buf.begin(), buf.end());
                                 continue;
                             }
                         } else if (client_sent == 0) {
@@ -233,6 +234,7 @@ int main(int argc, char *argv[]) {
                             proxy_socks_to_client_map.erase(fd);
                             close(fd);
                             close(client_fd);
+                            std::destroy(buf.begin(), buf.end());
                             continue;
                         } else {
                             std::cout << "Successfully sent: " << client_sent << " to proxy\n";
@@ -248,27 +250,40 @@ int main(int argc, char *argv[]) {
                     }
                 }
 
-            }
-
-
-            if (events[i].events == EPOLLOUT) {
-
+            } else if (events[i].events & (EPOLLRDHUP | EPOLLHUP)) {
                 int fd = events[i].data.fd;
+                int client_fd = -1, proxy_fd = -1;
 
-                if (fd_to_buf_map.count(fd)) {
-                    ssize_t write_bytes = write(fd, fd_to_buf_map.at(fd).data(), fd_to_buf_map.at(fd).size());
+                if (clients_to_proxy_socks_map.count(fd)) {
+                    proxy_fd = clients_to_proxy_socks_map[fd];
+                    clients_to_proxy_socks_map.erase(fd);
+                    proxy_socks_to_client_map.erase(client_fd);
+                    client_fd = fd;
+                }
 
-                    if (write_bytes == -1) {
-                        if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                            std::cout << "Fuck this shit...\n";
-                        }
-                    } else if (write_bytes == 0) {
-                        std::cout << "Seems like write fd is closed: " << fd << '\n';
-                        fd_to_buf_map.erase(fd);
-                        close(fd);
-                        epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, nullptr);
+                if (proxy_socks_to_client_map.count(fd)) {
+                    client_fd = proxy_socks_to_client_map[fd];
+                    proxy_socks_to_client_map.erase(fd);
+                    clients_to_proxy_socks_map.erase(client_fd);
+                    proxy_fd = fd;
+                }
+
+                fd_to_buf_map.erase(fd);
+
+                if (client_fd != -1) {
+                    std::cout << "Cleanup and close fd: " << client_fd;
+
+                    if (proxy_fd != -1) std::cout << " and proxy_fd: " << proxy_fd;
+
+                    std::cout << std::endl;
+
+                    epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client_fd, nullptr);
+                    close(client_fd);
+
+                    if (proxy_fd != -1) {
+                        epoll_ctl(epoll_fd, EPOLL_CTL_DEL, proxy_fd, nullptr);
+                        close(proxy_fd);
                     }
-
                 }
 
             }

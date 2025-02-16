@@ -192,23 +192,24 @@ public:
     static ssize_t frame_to_proxy(std::vector<uint8_t> &buf, int sock) {
 
         ssize_t total_sent = 0;
-        std::string data{buf.begin(), buf.end()};
 
-        std::cout << "\n---" << data << "---\n";
+      //  std::cout << "\n---" << data << "---\n";
 
-        while (total_sent < data.size()) {
-            size_t bytes_to_send = std::min((size_t) CHUNK_N_BYTES, data.size() - total_sent);
-            ssize_t byte_sent = write(sock, data.data() + total_sent, bytes_to_send);
-            total_sent += byte_sent;
-        }
+        ssize_t byte_sent = write(sock, buf.data(), buf.size());
+//        while (total_sent < buf.size()) {
+//            size_t bytes_to_send = std::min((size_t) CHUNK_N_BYTES, buf.size() - total_sent);
+//
+//            total_sent += byte_sent;
+//        }
 
-        return total_sent;
+        return byte_sent;
     }
 
     static ssize_t frame_from_proxy(int proxy_sock, std::map<int, std::vector<uint8_t>> &buf_map, Packet &packet) {
         uint8_t temp[CHUNK_N_BYTES];
         ssize_t bytes_read = read(proxy_sock, temp, CHUNK_N_BYTES);
         std::vector<uint8_t> buf = buf_map.at(proxy_sock);
+        buf.reserve(CHUNK_N_BYTES + buf.size());
 
         if (bytes_read > 0) {
             buf.insert(buf.end(), temp, temp + bytes_read);
