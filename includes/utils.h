@@ -43,6 +43,16 @@ public:
         fcntl(sock, F_SETFL, flags | O_NONBLOCK);
     }
 
+    static void set_tcp_no_delay(int sock) {
+        socklen_t enable = 1;
+        setsockopt(sock, SOL_SOCKET, TCP_NODELAY, &enable, sizeof(enable));
+    }
+
+    static void set_port_reusable (int sock) {
+        socklen_t enable = 1;
+        setsockopt(sock, SOL_SOCKET, SO_REUSEPORT, &enable, sizeof(enable));
+    }
+
 };
 
 class KMPMatcher {
@@ -215,6 +225,10 @@ public:
         return this->sock;
     }
 
+    void close_socket() {
+        close(this->sock);
+    }
+
     virtual ~ClientSocket() {
         freeaddrinfo(this->server_address_ll);  // Always free addrinfo memory
     }
@@ -251,7 +265,11 @@ public:
 
         for (struct addrinfo *addr = this->server_address_ll; addr != nullptr; addr = addr->ai_next) {
             this->sock = socket(addr->ai_family, addr->ai_socktype, addr->ai_protocol);
+
             Utils::set_nonblocking_socket(this->sock);
+            Utils::set_port_reusable(this->sock);
+
+
 
             if (this->sock < 0) {
                 continue;

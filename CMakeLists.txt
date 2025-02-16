@@ -18,17 +18,21 @@ add_executable(xhttp_c
         includes/utils.h
         includes/packet.h
         utils/Utils.cpp
-        includes/compressor.h)
+        includes/compressor.h
+
+        )
 
 add_executable(
         test_c
 
         tests/test.cpp
+        logger/Logger.cpp
         includes/crypt.h
         includes/utils.h
         includes/packet.h
         utils/Utils.cpp
-        utils/SocketUtility.cpp includes/compressor.h)
+        includes/compressor.h
+)
 
 add_executable(xhttp_s
 

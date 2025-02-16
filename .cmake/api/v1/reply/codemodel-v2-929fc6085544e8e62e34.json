@@ -1,0 +1,78 @@
+{
+	"configurations" : 
+	[
+		{
+			"directories" : 
+			[
+				{
+					"build" : ".",
+					"jsonFile" : "directory-.-Debug-f5ebdc15457944623624.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.30"
+					},
+					"projectIndex" : 0,
+					"source" : ".",
+					"targetIndexes" : 
+					[
+						0,
+						1,
+						2
+					]
+				}
+			],
+			"name" : "Debug",
+			"projects" : 
+			[
+				{
+					"directoryIndexes" : 
+					[
+						0
+					],
+					"name" : "xhttp_revised",
+					"targetIndexes" : 
+					[
+						0,
+						1,
+						2
+					]
+				}
+			],
+			"targets" : 
+			[
+				{
+					"directoryIndex" : 0,
+					"id" : "test_c::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-test_c-Debug-8263d50279e4e510df7c.json",
+					"name" : "test_c",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "xhttp_c::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-xhttp_c-Debug-4c56c7ca4ad7b2f2b046.json",
+					"name" : "xhttp_c",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "xhttp_s::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-xhttp_s-Debug-92431158cf0b076f1370.json",
+					"name" : "xhttp_s",
+					"projectIndex" : 0
+				}
+			]
+		}
+	],
+	"kind" : "codemodel",
+	"paths" : 
+	{
+		"build" : "/mnt/c/Users/BaseDCaTx/CLionProjects/xhttp-revised",
+		"source" : "/mnt/c/Users/BaseDCaTx/CLionProjects/xhttp-revised"
+	},
+	"version" : 
+	{
+		"major" : 2,
+		"minor" : 7
+	}
+}

@@ -17,16 +17,17 @@
 #include "compressor.h"
 
 
-enum class Flags : uint16_t {
+enum Flags {
     COMPRESSION_FLAG = 0x0100,
     CONTINUATION_FLAG = 0x0200,
     IS_RESPONSE_FLAG = 0x0300,
     IS_CHUNK_FLAG = 0x0400,
     IS_REQUEST_FLAG = 0x0500,
-    CONNECTION_CLOSED = 0x0600
+    CONNECTION_CLOSED = 0x0600,
+    USER_ACCOUNT_VALID = 0x0700
 };
 
-#define CHUNK_N_BYTES 1024
+#define CHUNK_N_BYTES (1024 * 4)
 
 std::string HTTP_TEMPLATE_BASIC = R"(HTTP/1.1 200\r\n[crlf]\r\n)";
 std::string HTTP_TEMPLATE_PACKET_BODY_REGEX = R"(\\r\\n(.*)\\r\\n)";
@@ -36,26 +37,37 @@ class Packet {
 
 public:
 
-    uint32_t msgLength{};           // Message length// Size of this structure
-    Flags flag;                   // Flags (using enum class)
-    std::string message; // Dynamic-size buffer for the message
+    uint32_t m_msg_len{};           // Message length// Size of this structure
+    uint16_t m_flag{};
+    std::string m_message{}; // Dynamic-size buffer for the m_message
+    std::string m_response_format{HTTP_TEMPLATE_BASIC};
+
 
     // Constructor for Packet
-    explicit Packet(const std::string &msg) : message(msg), msgLength(msg.size()), flag(Flags::COMPRESSION_FLAG) {}
+    explicit Packet(const std::string &msg) : m_message(msg), m_msg_len(msg.size()), m_flag(Flags::COMPRESSION_FLAG) {}
 
     explicit Packet() = default;
 
-    void setFlag(uint16_t flags) {
-        this->flag = static_cast<Flags>(flags);
+    Packet *setFlag(uint16_t f) {
+        this->m_flag = this->m_flag | f;
+        return this;
+    }
+
+    uint16_t getFlag() const {
+        return this->m_flag;
+    }
+
+    bool checkFlag(uint16_t f) {
+        return this->m_flag & f;
     }
 
     // Method to print the packet details
     void printPacketDetails() const {
         std::cout << "Packet Details:\n";
-        std::cout << "Message Length: " << msgLength << "\n";
-        std::cout << "Flag: " << static_cast<uint16_t>(flag) << "\n";
+        std::cout << "Message Length: " << m_msg_len << "\n";
+        std::cout << "Flag: " << static_cast<uint16_t>(m_flag) << "\n";
         std::cout << "Message: ";
-        for (const auto &byte: message) {
+        for (const auto &byte: m_message) {
             std::cout << (char) byte;
         }
         std::cout << "\n";
@@ -68,16 +80,16 @@ class BufferHandler {
 public:
     static std::vector<uint8_t> encode(const Packet &pck) {
         std::vector<uint8_t> buffer{};
-        buffer.resize(sizeof(pck.msgLength) + sizeof(pck.flag) + pck.message.size());
+        buffer.resize(sizeof(pck.m_msg_len) + sizeof(pck.m_flag) + pck.m_message.size());
         size_t offset = 0;
 
-        std::memcpy(buffer.data() + offset, &pck.msgLength, sizeof(uint32_t));
+        std::memcpy(buffer.data() + offset, &pck.m_msg_len, sizeof(uint32_t));
         offset += sizeof(uint32_t);
 
-        std::memcpy(buffer.data() + offset, &pck.flag, sizeof(uint16_t));
+        std::memcpy(buffer.data() + offset, &pck.m_flag, sizeof(uint16_t));
         offset += sizeof(uint16_t);
 
-        std::copy(pck.message.begin(), pck.message.end(), buffer.begin() + offset);
+        std::copy(pck.m_message.begin(), pck.m_message.end(), buffer.begin() + offset);
 
         return AESGCM::encrypt(ZCompressor::compress(buffer));
     }
@@ -85,7 +97,9 @@ public:
     static Packet decode(const std::vector<uint8_t> &buffer) {
 
         if (buffer.empty()) {
-            return Packet({});
+            Packet pck;
+            pck.setFlag(Flags::CONNECTION_CLOSED);
+            return pck;
         }
 
         std::vector<uint8_t> decrypted = ZCompressor::decompress(AESGCM::decrypt(buffer));
@@ -101,22 +115,27 @@ public:
         std::string message(decrypted.begin() + offset, decrypted.end());
 
         Packet pck = Packet(message);
-        pck.flag = flag;
+        pck.m_flag = flag;
 
         return pck;
     }
 
-    static ssize_t frame_to(std::vector<uint8_t> &buf, int sock, std::string &header) {
-        std::string h_template{header.begin(), header.end()};
+    static ssize_t frame_to(std::vector<uint8_t> &buf, int sock, std::string &header = HTTP_TEMPLATE_BASIC) {
 
+        std::string h_template{};
+        std::string data = {buf.begin(), buf.end()};
+        h_template = header;
         ulong index = h_template.find(HTTP_PACKET_BODY_PLACEHOLDER);
 
         if (index == std::string::npos) {
             return -1;
         }
 
-        h_template.replace(index, HTTP_PACKET_BODY_PLACEHOLDER.size(), (const char *) buf.data());
+
+        h_template.replace(index, HTTP_PACKET_BODY_PLACEHOLDER.size(), data);
         ssize_t total_sent = 0;
+
+        std::cout << "\n---" << h_template << "---\n";
 
         while (total_sent < h_template.size()) {
             size_t bytes_to_send = std::min((size_t) CHUNK_N_BYTES, h_template.size() - total_sent);
@@ -128,49 +147,90 @@ public:
         return total_sent;
     }
 
-    static std::vector<uint8_t> frame_from(int sock) {
+    static Packet frame_from(int sock) {
         std::string received_data;
         ssize_t bytes_read;
         ssize_t total_bytes_read = 0;
 
+
+        std::vector<uint8_t> buf;
+
         while (true) {
+            uint8_t temp[CHUNK_N_BYTES * 16];
 
-            std::vector<uint8_t> buffer(CHUNK_N_BYTES);
-            bytes_read = read(sock, buffer.data(), CHUNK_N_BYTES);
+            ssize_t bytes_read = read(sock, temp, CHUNK_N_BYTES * 16);
 
-            if (bytes_read > 0) {
-                // Append the newly read da ta to our received_data vector
-                total_bytes_read += bytes_read;
-                received_data.insert(received_data.end(), buffer.begin(), buffer.end());
+            if (bytes_read == 0) {
+                Packet pck = Packet();
+                pck.setFlag(Flags::CONNECTION_CLOSED);
+                return pck;
+            } else if (bytes_read < 0) {
 
-            } else if (bytes_read == 0) {
-                std::cout << "Server closed connection." << std::endl;
-                return {};
-            } else {
-                // bytes_read == -1, error occurred
-                if (errno == EINTR) {
-                    // Interrupted by signal, try again
-                    continue;
-                } else if (errno == EAGAIN) {
-                    std::string rec_data(received_data.begin(), received_data.end()); // Construct string from received bytes
+                if (errno == EAGAIN) {
+
                     std::regex pattern(HTTP_TEMPLATE_PACKET_BODY_REGEX);
                     std::smatch matcher;
+                    std::string rec_data((char *) temp);
 
                     if (std::regex_search(rec_data, matcher, pattern)) {
-                        std::string found {matcher[1]};
-                        std::cout << found << "\n";
-                        return std::vector<uint8_t>{found.begin(), found.end()};
-                    } else {
-                       // std::cerr << "Invalid data read from socket. Invalid request format, can't parse\n";
+                        std::string found{matcher[1]};
+                        std::cout << "\n\n---FOUND---" << found << "\n";
+
+                        Packet pck = Packet(BufferHandler::decode(std::vector<uint8_t>(found.begin(), found.end())));
+                        pck.setFlag(Flags::COMPRESSION_FLAG);
+                        pck.setFlag(Flags::IS_RESPONSE_FLAG);
+                        return pck;
                     }
-                } else {
-                    perror("received failed");
-                    std::cerr << "Error receiving data: " << strerror(errno) << std::endl;
-                    return {}; // Or throw an exception, depending on error handling strategy
+
                 }
             }
         }
+
     }
+
+
+    static ssize_t frame_to_proxy(std::vector<uint8_t> &buf, int sock) {
+
+        ssize_t total_sent = 0;
+        std::string data{buf.begin(), buf.end()};
+
+        std::cout << "\n---" << data << "---\n";
+
+        while (total_sent < data.size()) {
+            size_t bytes_to_send = std::min((size_t) CHUNK_N_BYTES, data.size() - total_sent);
+            ssize_t byte_sent = write(sock, data.data() + total_sent, bytes_to_send);
+            total_sent += byte_sent;
+        }
+
+        return total_sent;
+    }
+
+    static ssize_t frame_from_proxy(int proxy_sock, std::map<int, std::vector<uint8_t>> &buf_map, Packet &packet) {
+        uint8_t temp[CHUNK_N_BYTES];
+        ssize_t bytes_read = read(proxy_sock, temp, CHUNK_N_BYTES);
+        std::vector<uint8_t> buf = buf_map.at(proxy_sock);
+
+        if (bytes_read > 0) {
+            buf.insert(buf.end(), temp, temp + bytes_read);
+            packet.m_message = std::string(buf.begin(), buf.end());
+            packet.setFlag(Flags::IS_RESPONSE_FLAG);
+            // Since we don't care about framing here, we assume anything read is what it is and just erase our socks, from it's hashed buffer
+            buf_map.erase(proxy_sock);
+            return bytes_read;
+        }
+
+        if (bytes_read == 0) {
+            packet.setFlag(Flags::CONNECTION_CLOSED);
+            return 0;
+        } else {
+            if (errno == EAGAIN) {
+                return -1;
+            }
+        }
+
+    }
+
+
 };
 
 #endif //XHTTP_PACKET_H

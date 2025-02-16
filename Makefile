@@ -185,6 +185,7 @@ logger/Logger.o: logger/Logger.cpp.o
 # target to build an object file
 logger/Logger.cpp.o:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/xhttp_c.dir/build.make CMakeFiles/xhttp_c.dir/logger/Logger.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_c.dir/build.make CMakeFiles/test_c.dir/logger/Logger.cpp.o
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/xhttp_s.dir/build.make CMakeFiles/xhttp_s.dir/logger/Logger.cpp.o
 .PHONY : logger/Logger.cpp.o
 
@@ -194,6 +195,7 @@ logger/Logger.i: logger/Logger.cpp.i
 # target to preprocess a source file
 logger/Logger.cpp.i:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/xhttp_c.dir/build.make CMakeFiles/xhttp_c.dir/logger/Logger.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_c.dir/build.make CMakeFiles/test_c.dir/logger/Logger.cpp.i
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/xhttp_s.dir/build.make CMakeFiles/xhttp_s.dir/logger/Logger.cpp.i
 .PHONY : logger/Logger.cpp.i
 
@@ -203,6 +205,7 @@ logger/Logger.s: logger/Logger.cpp.s
 # target to generate assembly for a file
 logger/Logger.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/xhttp_c.dir/build.make CMakeFiles/xhttp_c.dir/logger/Logger.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_c.dir/build.make CMakeFiles/test_c.dir/logger/Logger.cpp.s
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/xhttp_s.dir/build.make CMakeFiles/xhttp_s.dir/logger/Logger.cpp.s
 .PHONY : logger/Logger.cpp.s
 
@@ -253,30 +256,6 @@ tests/test.s: tests/test.cpp.s
 tests/test.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_c.dir/build.make CMakeFiles/test_c.dir/tests/test.cpp.s
 .PHONY : tests/test.cpp.s
-
-utils/SocketUtility.o: utils/SocketUtility.cpp.o
-.PHONY : utils/SocketUtility.o
-
-# target to build an object file
-utils/SocketUtility.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_c.dir/build.make CMakeFiles/test_c.dir/utils/SocketUtility.cpp.o
-.PHONY : utils/SocketUtility.cpp.o
-
-utils/SocketUtility.i: utils/SocketUtility.cpp.i
-.PHONY : utils/SocketUtility.i
-
-# target to preprocess a source file
-utils/SocketUtility.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_c.dir/build.make CMakeFiles/test_c.dir/utils/SocketUtility.cpp.i
-.PHONY : utils/SocketUtility.cpp.i
-
-utils/SocketUtility.s: utils/SocketUtility.cpp.s
-.PHONY : utils/SocketUtility.s
-
-# target to generate assembly for a file
-utils/SocketUtility.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_c.dir/build.make CMakeFiles/test_c.dir/utils/SocketUtility.cpp.s
-.PHONY : utils/SocketUtility.cpp.s
 
 utils/Utils.o: utils/Utils.cpp.o
 .PHONY : utils/Utils.o
@@ -331,9 +310,6 @@ help:
 	@echo "... tests/test.o"
 	@echo "... tests/test.i"
 	@echo "... tests/test.s"
-	@echo "... utils/SocketUtility.o"
-	@echo "... utils/SocketUtility.i"
-	@echo "... utils/SocketUtility.s"
 	@echo "... utils/Utils.o"
 	@echo "... utils/Utils.i"
 	@echo "... utils/Utils.s"
