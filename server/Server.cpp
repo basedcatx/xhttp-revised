@@ -1,4 +1,4 @@
-#include "../includes/utils.h"
+#include "../includes/utilx.h"
 #include "../includes/logger.h"
 #include "sys/epoll.h"
 #include <unistd.h>
@@ -128,8 +128,23 @@ int main(int argc, char *argv[]) {
                 if (clients_to_proxy_socks_map.count(fd)) {
                     int proxy_fd = clients_to_proxy_socks_map.at(fd);
                     fd_to_buf_map.insert(std::pair<int, std::vector<uint8_t>>(fd, std::vector<uint8_t>()));
+
                     Packet pck{};
                     ssize_t read_from_fd = BufferHandler::frame_from_proxy(fd, fd_to_buf_map, pck);
+
+                    std::string unframed_message = BufferHandler::unframe(pck);
+
+                    if (unframed_message.empty()) {
+                        continue;
+                    }
+
+                    try {
+                        std::vector<uint8_t> buf(unframed_message.begin(), unframed_message.end());
+                        pck = BufferHandler::decode(buf);
+                        fd_to_buf_map.erase(fd);
+                    } catch (std::exception &e) {
+                        continue;
+                    }
 
                     if (read_from_fd > 0) {
                         std::cout << "--- READ FROM CLIENT: " << fd << " : " << pck.m_message << std::endl;
@@ -143,6 +158,8 @@ int main(int argc, char *argv[]) {
 
                         // Writing to proxy!
                         std::vector<uint8_t> temp(pck.m_message.begin(), pck.m_message.end());
+
+
                         ssize_t proxy_sent = BufferHandler::frame_to_proxy(temp, proxy_fd);
 
                         if (proxy_sent == -1) {
@@ -202,29 +219,33 @@ int main(int argc, char *argv[]) {
                     fd_to_buf_map.insert(std::pair<int, std::vector<uint8_t>>(fd, std::vector<uint8_t>()));
                     Packet pck{};
 
-                    /*
-                    * TODO: REQUIRES FRAMING
-                    */
 
                     // NIGGA NEEDS TO BE INTERPRETED FROM OUR CLIENT
                     ssize_t read_from_fd = BufferHandler::frame_from_proxy(fd, fd_to_buf_map, pck);
+                    std::cout << "frame_from_proxy (client_fd: " << fd << ") returned: " << read_from_fd
+                              << " bytes\n";
 
                     if (read_from_fd > 0) {
                         std::cout << "--- READ FROM PROXY " << fd << " : " << pck.m_message << std::endl;
-                        // Writing to proxy!
-                        std::vector<uint8_t> buf(pck.m_message.begin(), pck.m_message.end());
 
+                        // Writing to client!
+                        std::vector<uint8_t> temp = BufferHandler::encode(pck);
 
-                        // THIS NEEDS TO BE RAW HTTP REQUESTS BROTHER
-                        ssize_t client_sent = BufferHandler::frame_to_proxy(buf, client_fd);
+                        ssize_t client_sent = BufferHandler::frame_to(temp, client_fd, pck.m_response_format);
+                        std::cout << "frame_to_client (client_fd: " << client_fd << ") wrote: " << client_sent
+                                  << " bytes\n";
+
 
                         if (client_sent == -1) {
+
                             if (errno == EAGAIN || errno == EWOULDBLOCK) {
                                 event.data.fd = client_fd;
                                 event.events = EPOLLIN | EPOLLOUT;
                                 epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client_fd, &event);
-                                std::destroy(buf.begin(), buf.end());
+                                continue;
+
                             } else {
+
                                 std::cout << "Something else occurred!\n";
                                 epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, nullptr);
                                 epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client_fd, nullptr);
@@ -232,18 +253,17 @@ int main(int argc, char *argv[]) {
                                 proxy_socks_to_client_map.erase(fd);
                                 close(fd);
                                 close(client_fd);
-                                std::destroy(buf.begin(), buf.end());
-                                continue;
+
                             }
                         } else if (client_sent == 0) {
+
                             epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, nullptr);
                             epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client_fd, nullptr);
                             clients_to_proxy_socks_map.erase(fd);
                             proxy_socks_to_client_map.erase(fd);
                             close(fd);
                             close(client_fd);
-                            std::destroy(buf.begin(), buf.end());
-                            continue;
+
                         } else {
                             std::cout << "Successfully sent: " << client_sent << " to proxy\n";
                         }
@@ -256,6 +276,7 @@ int main(int argc, char *argv[]) {
                         close(fd);
                         close(client_fd);
                     }
+                    continue;
                 }
 
             } else if (events[i].events & (EPOLLRDHUP | EPOLLHUP)) {
@@ -316,4 +337,3 @@ void cleanup() {
     puts("\nCleaning up held resources!\n");
     exit(EXIT_FAILURE);
 }
-

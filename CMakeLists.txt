@@ -15,7 +15,7 @@ add_executable(xhttp_c
         client/Client.cpp
         logger/Logger.cpp
         includes/crypt.h
-        includes/utils.h
+        includes/utilx.h
         includes/packet.h
         utils/Utils.cpp
         includes/compressor.h
@@ -28,7 +28,7 @@ add_executable(
         tests/test.cpp
         logger/Logger.cpp
         includes/crypt.h
-        includes/utils.h
+        includes/utilx.h
         includes/packet.h
         utils/Utils.cpp
         includes/compressor.h
@@ -39,7 +39,7 @@ add_executable(xhttp_s
         server/Server.cpp
         logger/Logger.cpp
         includes/crypt.h
-        includes/utils.h
+        includes/utilx.h
         includes/packet.h
         utils/Utils.cpp
         includes/compressor.h)

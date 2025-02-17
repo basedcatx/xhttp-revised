@@ -1,4 +1,4 @@
-#include "../includes/utils.h"
+#include "../includes/utilx.h"
 #include "../includes/logger.h"
 #include <sys/select.h>
 #include <unistd.h>
@@ -151,8 +151,9 @@ int main(int argc, char *argv[]) {
 
                             // OUR SERVER ONLY UNDERSTANDS OUR PROTOCOL FUCK!
 
-                            std::vector<uint8_t> temp(pck.m_message.begin(), pck.m_message.end());
-                            ssize_t bytes_written = BufferHandler::frame_to_proxy(temp, proxy_fd);
+                            std::vector<uint8_t> temp = BufferHandler::encode(pck);
+
+                            ssize_t bytes_written = BufferHandler::frame_to(temp, proxy_fd, pck.m_response_format);
                             std::cout << "frame_to_proxy (proxy_fd: " << proxy_fd << ") wrote: " << bytes_written
                                       << " bytes\n";
 
@@ -240,11 +241,39 @@ int main(int argc, char *argv[]) {
                                   << " bytes\n";
 
 
+                        std::string unframed_message = BufferHandler::unframe(pck);
+
+                        std::cout << "----PCK----" << unframed_message << std::endl;
+
+                        if (unframed_message.empty()) {
+                            std::cout << ("Unframed message is empty\n");
+                            continue;
+                        }
+
+                        try {
+                            std::vector<uint8_t> buf(unframed_message.begin(), unframed_message.end());
+                            pck = BufferHandler::decode(buf);
+                        } catch (std::exception &e) {
+                            continue;
+                        }
+
+
                         if (bytes_read_from_proxy > 0) {
+
+                            std::cout << "--- READ FROM CLIENT: " << fd << " : " << pck.m_message << std::endl;
+
+                            if (fcntl(fd, F_GETFD) == -1 && errno == EBADF) {
+                                std::cerr << "Proxy FD " << fd
+                                          << " is already closed (bad file descriptor) before write! Client FD: " << fd
+                                          << std::endl;
+                                continue; // Skip the write attempt
+                            }
+
+
                             std::vector<uint8_t> temp = std::vector<uint8_t>(pck.m_message.begin(),
                                                                              pck.m_message.end());
                             ssize_t bytes_written = BufferHandler::frame_to_proxy(temp, client_fd);
-                            std::cout << "frame_to_proxy (client_fd: " << client_fd << ") wrote: " << bytes_written
+                            std::cout << "frame_to_client (client_fd: " << client_fd << ") wrote: " << bytes_written
                                       << " bytes\n";
 
 
