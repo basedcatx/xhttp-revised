@@ -247,15 +247,18 @@ int main(int argc, char *argv[]) {
 
                         if (unframed_message.empty()) {
                             std::cout << ("Unframed message is empty\n");
-                            continue;
+                           // continue;
                         }
 
                         try {
                             std::vector<uint8_t> buf(unframed_message.begin(), unframed_message.end());
                             pck = BufferHandler::decode(buf);
                         } catch (std::exception &e) {
-                            continue;
+                            pck.m_message = {};
+                            //continue;
                         }
+
+
 
 
                         if (bytes_read_from_proxy > 0) {
