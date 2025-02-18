@@ -83,6 +83,8 @@ int main(int argc, char *argv[]) {
 
                 Utils::set_nonblocking_socket(proxy_sock);
                 Utils::set_nonblocking_socket(client_fd);
+                Utils::set_keepalive(proxy_sock);
+                Utils::set_keepalive(client_fd);
 
                 if (proxy_sock < 0) {
                     LogSystemError("proxy_sock()");

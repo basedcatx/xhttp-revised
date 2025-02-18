@@ -2,7 +2,7 @@
 	"artifacts" : 
 	[
 		{
-			"path" : "xhttp_c"
+			"path" : "test_c"
 		}
 	],
 	"backtrace" : 1,
@@ -25,19 +25,19 @@
 			{
 				"command" : 0,
 				"file" : 0,
-				"line" : 13,
+				"line" : 25,
 				"parent" : 0
 			},
 			{
 				"command" : 1,
 				"file" : 0,
-				"line" : 48,
+				"line" : 47,
 				"parent" : 0
 			},
 			{
 				"command" : 1,
 				"file" : 0,
-				"line" : 50,
+				"line" : 51,
 				"parent" : 0
 			}
 		]
@@ -68,7 +68,7 @@
 			]
 		}
 	],
-	"id" : "xhttp_c::@6890427a1f51a3e7e1df",
+	"id" : "test_c::@6890427a1f51a3e7e1df",
 	"link" : 
 	{
 		"commandFragments" : 
@@ -78,7 +78,7 @@
 				"role" : "flags"
 			},
 			{
-				"fragment" : "-fsanitize=address",
+				"fragment" : "",
 				"role" : "flags"
 			},
 			{
@@ -104,8 +104,8 @@
 		],
 		"language" : "CXX"
 	},
-	"name" : "xhttp_c",
-	"nameOnDisk" : "xhttp_c",
+	"name" : "test_c",
+	"nameOnDisk" : "test_c",
 	"paths" : 
 	{
 		"build" : ".",
@@ -138,7 +138,7 @@
 		{
 			"backtrace" : 1,
 			"compileGroupIndex" : 0,
-			"path" : "client/Client.cpp",
+			"path" : "tests/test.cpp",
 			"sourceGroupIndex" : 0
 		},
 		{

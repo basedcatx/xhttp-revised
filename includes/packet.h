@@ -103,7 +103,7 @@ public:
         std::cout << "\nOffset: " << offset << "\n\n";
         Base64 b64;
         std::vector<uint8_t> e_buf = AESGCM::encrypt(ZCompressor::compress(buffer));
-        std::string str =  b64.base64_encode(e_buf);
+        std::string str = b64.base64_encode(e_buf);
         std::vector<uint8_t> ret{str.begin(), str.end()};
         return ret;
     }
@@ -135,7 +135,7 @@ public:
         message.insert(message.begin(), decrypted.begin() + offset, decrypted.end());
 
         std::cout << "\n\n-------- DECODE LOGS START ------\n\n";
-        for (auto i : decrypted) {
+        for (auto i: decrypted) {
             std::cout << (char) i << ' ';
         }
         std::cout << "\n\n-------- DECODE LOGS END ------\n\n";
@@ -168,7 +168,7 @@ public:
         return frame_to_proxy(temp, sock);
     }
 
-    static std::string unframe (Packet &packet) {
+    static std::string unframe(Packet &packet) {
 
 
         std::regex pattern(HTTP_TEMPLATE_PACKET_BODY_REGEX);
@@ -205,7 +205,7 @@ public:
             uint8_t char_array_3[3];
             uint8_t char_array_4[4];
             size_t bufLen = buf.size();
-            uint8_t* buf2 = buf.data();
+            uint8_t *buf2 = buf.data();
 
             while (bufLen--) {
                 char_array_3[i++] = *(buf2++);
@@ -215,15 +215,14 @@ public:
                     char_array_4[2] = ((char_array_3[1] & 0x0f) << 2) + ((char_array_3[2] & 0xc0) >> 6);
                     char_array_4[3] = char_array_3[2] & 0x3f;
 
-                    for(i = 0; (i <4) ; i++)
+                    for (i = 0; (i < 4); i++)
                         ret += base64_chars[char_array_4[i]];
                     i = 0;
                 }
             }
 
-            if (i)
-            {
-                for(j = i; j < 3; j++)
+            if (i) {
+                for (j = i; j < 3; j++)
                     char_array_3[j] = '\0';
 
                 char_array_4[0] = (char_array_3[0] & 0xfc) >> 2;
@@ -234,7 +233,7 @@ public:
                 for (j = 0; (j < i + 1); j++)
                     ret += base64_chars[char_array_4[j]];
 
-                while((i++ < 3))
+                while ((i++ < 3))
                     ret += '=';
             }
 
@@ -242,8 +241,7 @@ public:
         }
 
 
-
-        std::vector<uint8_t> base64_decode(std::string const& encoded_string) {
+        std::vector<uint8_t> base64_decode(std::string const &encoded_string) {
             int in_len = encoded_string.size();
             int i = 0;
             int j = 0;
@@ -251,10 +249,11 @@ public:
             uint8_t char_array_4[4], char_array_3[3];
             std::vector<uint8_t> ret;
 
-            while (in_len-- && ( encoded_string[in_] != '=') && is_base64(encoded_string[in_])) {
-                char_array_4[i++] = encoded_string[in_]; in_++;
-                if (i ==4) {
-                    for (i = 0; i <4; i++)
+            while (in_len-- && (encoded_string[in_] != '=') && is_base64(encoded_string[in_])) {
+                char_array_4[i++] = encoded_string[in_];
+                in_++;
+                if (i == 4) {
+                    for (i = 0; i < 4; i++)
                         char_array_4[i] = base64_chars.find(char_array_4[i]);
 
                     char_array_3[0] = (char_array_4[0] << 2) + ((char_array_4[1] & 0x30) >> 4);
@@ -268,10 +267,10 @@ public:
             }
 
             if (i) {
-                for (j = i; j <4; j++)
+                for (j = i; j < 4; j++)
                     char_array_4[j] = 0;
 
-                for (j = 0; j <4; j++)
+                for (j = 0; j < 4; j++)
                     char_array_4[j] = base64_chars.find(char_array_4[j]);
 
                 char_array_3[0] = (char_array_4[0] << 2) + ((char_array_4[1] & 0x30) >> 4);
@@ -283,7 +282,6 @@ public:
 
             return ret;
         }
-
 
 
     };
@@ -307,30 +305,23 @@ public:
 
     static ssize_t frame_from_proxy(int proxy_sock, std::map<int, std::vector<uint8_t>> &buf_map, Packet &packet) {
 
-        uint8_t temp[CHUNK_N_BYTES];
-        ssize_t bytes_read = read(proxy_sock, temp, CHUNK_N_BYTES);
-        buf_map.at(proxy_sock).reserve(CHUNK_N_BYTES + buf_map.at(proxy_sock).size());
+        std::vector<uint8_t> &buffer = buf_map[proxy_sock];
+        uint8_t temp_buffer[CHUNK_N_BYTES] = {0}; // Local temporary buffer
+        buffer.reserve(CHUNK_N_BYTES);
+        ssize_t bytes_read = 0;
+        ssize_t total_read = 0;
 
-        if (bytes_read > 0) {
-            buf_map.at(proxy_sock).insert(buf_map.at(proxy_sock).end(), temp, temp + bytes_read);
-            packet.m_message = std::string(buf_map.at(proxy_sock).begin(), buf_map.at(proxy_sock).end());
-            packet.setFlag(Flags::IS_RESPONSE_FLAG);
-            buf_map.erase(proxy_sock);
+        while ((bytes_read = read(proxy_sock, temp_buffer, CHUNK_N_BYTES)) > 0) {
+            total_read += bytes_read;
+            buffer.insert(buffer.end(), temp_buffer, temp_buffer + bytes_read);
         }
 
-        if (bytes_read == 0) {
-            packet.setFlag(Flags::CONNECTION_CLOSED);
-            return 0;
-        } else {
-            if (errno == EAGAIN) {
-                return -1;
-            }
-        }
+        packet.m_message = std::string(buffer.begin(), buffer.end());
+        std::cout << "LOL: " << packet.m_message;
 
 
-        return bytes_read;
+        return total_read;
     }
-
 
 };
 

@@ -48,6 +48,11 @@ public:
         setsockopt(sock, SOL_SOCKET, TCP_NODELAY, &enable, sizeof(enable));
     }
 
+    static void set_keepalive(int sock) {
+        socklen_t enable = 1;
+        setsockopt(sock, SOL_SOCKET, SO_KEEPALIVE, &enable, sizeof(enable));
+    }
+
     static void set_port_reusable (int sock) {
         socklen_t enable = 1;
         setsockopt(sock, SOL_SOCKET, SO_REUSEPORT, &enable, sizeof(enable));
