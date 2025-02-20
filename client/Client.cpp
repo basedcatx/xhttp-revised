@@ -9,8 +9,8 @@
 #include <iostream> // Included for std::cerr and std::cout
 
 #define DEF_LOCAL_PORT "8090"
-#define PROXY_HOST "170.205.31.126"
-//#define PROXY_HOST "localhost"
+//#define PROXY_HOST "170.205.31.126"
+#define PROXY_HOST "localhost"
 #define PROXY_PORT "8080"
 #define LOCAL_HOST "0.0.0.0"
 
@@ -24,6 +24,15 @@ void cleanup_handler(int signo) {
     if (signo == SIGINT || signo == SIGTERM) {
         cleanup();
     }
+}
+
+void close_and_clean(int client_fd, int proxy_fd, int epoll_fd, std::map<int, int> &client_to_prox_map, std::map<int, int> &proxy_to_client_map) {
+    epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client_fd, nullptr);
+    epoll_ctl(epoll_fd, EPOLL_CTL_DEL, proxy_fd, nullptr);
+    close(client_fd);
+    close(proxy_fd);
+    client_to_prox_map.erase(client_fd);
+    proxy_to_client_map.erase(proxy_fd);
 }
 
 
@@ -43,13 +52,14 @@ int main(int argc, char *argv[]) {
 
     ServerSocket LocalServerManager = ServerSocket(DEF_LOCAL_PORT);
     int listen_fd = LocalServerManager.createSocket();
+
     struct epoll_event event{}, events[MAX_EVENTS]{};
     std::map<int, int> client_to_proxy_map{};
     std::map<int, int> proxy_to_client_map{};
-    std::map<int, std::vector<uint8_t>> fd_to_data_map{};
 
     if (listen_fd < 0) {
         close(listen_fd);
+        std::cout << "Probably chosen port is in use!\n";
         LogSystemError("listening_fd");
     }
 
@@ -74,21 +84,32 @@ int main(int argc, char *argv[]) {
 
     while (true) {
 
-        epoll_wait(epoll_fd, events, MAX_EVENTS, -1);
+        int nfds = epoll_wait(epoll_fd, events, MAX_EVENTS, -1);
 
-        for (auto ev: events) {
+        for (int i = 0; i < nfds; i++) {
 
-            if (ev.events & EPOLLIN) { // Check for EPOLLIN event!
+            if (events[i].events & EPOLLIN) { // Check for EPOLLIN event!
 
-                int fd = ev.data.fd;
+                int fd = events[i].data.fd;
                 std::cout << "EPOLLIN event on fd: " << fd << std::endl; // Log EPOLLIN event
 
                 if (fd == listen_fd) {
 
                     std::cout << "---\nListening fd " << listen_fd
-                              << " received EPOLLIN. Accepting new connection...\n";
+                              << " received read request. Accepting new connection...\n";
                     int client_fd = LocalServerManager.accept_new_connection();
                     int proxy_fd = ClientSocket(PROXY_HOST, PROXY_PORT).createSocket();
+
+                    if (client_fd < 0) {
+                        std::cout << "Failed to establish a local connection\n";
+                        continue;
+                    }
+
+                    if (proxy_fd < 0) {
+                        std::cout << "Failed to establish a connection to the server. Is it even running?\n";
+                        continue;
+                    }
+
                     Utils::set_nonblocking_socket(proxy_fd);
                     Utils::set_nonblocking_socket(client_fd);
                     Utils::set_keepalive(proxy_fd);
@@ -119,8 +140,6 @@ int main(int argc, char *argv[]) {
 
                     client_to_proxy_map.insert(std::pair<int, int>(client_fd, proxy_fd));
                     proxy_to_client_map.insert(std::pair<int, int>(proxy_fd, client_fd));
-                    fd_to_data_map.insert(std::pair<int, std::vector<uint8_t>>(client_fd, std::vector<uint8_t>()));
-                    fd_to_data_map.insert(std::pair<int, std::vector<uint8_t>>(proxy_fd, std::vector<uint8_t>()));
 
 
                     std::cout << "\n--New connection accepted connection\n";
@@ -133,281 +152,251 @@ int main(int argc, char *argv[]) {
                     // We check if the client is ready for read, ie we know it wasn't the listening sock that called the
                     // EPOLL_EVENT, so it's definitely a client or socket....
                     // We simply check if the current fd, that has the read event is a key in our client -> buf map (client has a read event)
+                    // We read from the client to our packet;
+                    // Note that our client in this case, is any application connected to our local server so it
+                    // spits raw HTTP Requests in plain text, so no decoding needed!
 
                     if (client_to_proxy_map.count(fd)) {
 
-
                         int proxy_fd = client_to_proxy_map.at(fd);
 
-                        // We read from the client to our packet;
-                        // Note that our client in this case, is any application connected to our local server so it
-                        // spits raw HTTP Requests in plain text, so no decoding needed!
-                        Packet pck{};
-                        ssize_t read_from_fd = BufferHandler::frame_from_proxy(fd, fd_to_data_map, pck);
+                        while (true) {
 
-                        std::cout << "frame_from (client_fd: " << fd << ") returned: " << read_from_fd
-                                  << " bytes\n";
+                            uint8_t buf[CHUNK_N_BYTES];
+                            std::memset (buf, 0, CHUNK_N_BYTES);
+                            ssize_t read_bytes = read(fd, buf, CHUNK_N_BYTES);
 
-                        if (read_from_fd > 0) {
+                            if (read_bytes > 0) {
 
-                            std::cout << "--- READ FROM CLIENT " << fd << " : " << pck.m_message << std::endl;
+                                std::cout << "Read: " << read_bytes << " bytes"
+                                          << " from local applications like chrome\n";
+                                // Process and send to the proxy
 
-                            // Writing to client!
-                            // We frame(frame_to), encode the raw HTTP-Like Request and forward it to our server (proxy)
-                            // All handled by frame_to
+                                Packet pck{};
+                                pck.set_packet_flags(Flags::IS_REQUEST_FLAG | Flags::COMPRESSION_FLAG);
+                                pck.set_message(buf, read_bytes);
+                                pck.set_user_acc_name("basedcatx");
+                                pck.set_user_acc_pass("basedcatxpass");
+                                pck.set_host("based.com");
+                                pck.set_device_id("device-id");
+                                pck.set_packet_id("packet-id");
+                                //
+                                pck.print_packet_details();
 
-                            std::vector<uint8_t> temp = BufferHandler::encode(pck);
+                                /*
+                                 * TODO: Fill in other packet fields later, like passwords and stuff
+                                 */
 
-                            ssize_t proxy_sent = BufferHandler::frame_to(temp, proxy_fd, pck.m_response_format);
+                                std::vector<uint8_t> buf_to_send = BufferHandler::encode(pck);
 
-                            std::cout << "frame_to_proxy (proxy_fd: " << proxy_fd << ") wrote: " << proxy_sent
-                                      << " bytes\n";
+                                std::vector<uint8_t> framed = BufferHandler::frame(buf_to_send,
+                                                                                   const_cast<std::string &>(pck.get_http_response_format()));
 
+//                                std::string f = Utils::extract_http_frame_pay(framed).first;
+//                                std::vector<uint8_t> f_vec(f.begin(), f.end());
+//                                std::cout << '\n' << BufferHandler::decode(f_vec).get_message();
 
-                            if (proxy_sent == -1) {
+                                ssize_t bytes_sent = BufferHandler::frame_to_proxy(framed, proxy_fd);
 
-                                // If our server isn't write-able, we can just continue till it is!
-                                // What else can we do!
+                                if (bytes_sent > 0) {
 
-                                if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                                    event.data.fd = proxy_fd;
-                                    event.events = EPOLLIN | EPOLLOUT;
-                                    epoll_ctl(epoll_fd, EPOLL_CTL_MOD, proxy_fd, &event);
-                                    continue;
+                                    std::cout << "Successfully sent: " << bytes_sent << " to our remote server"
+                                              << std::endl;
+                                    break;
+
+                                } else if (bytes_sent == 0) {
+
+                                    std::cout << "For some reason, our remote server is down\n";
+                                    perror("remote_server");
+                                    close_and_clean(fd, proxy_fd, epoll_fd, client_to_proxy_map, proxy_to_client_map);
+                                    break;
 
                                 } else {
 
-                                    std::cout << "Something else occurred!\n";
-//                                    epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, nullptr);
-                                    epoll_ctl(epoll_fd, EPOLL_CTL_DEL, proxy_fd, nullptr);
-//                                    client_to_proxy_map.erase(fd);
-                                    proxy_to_client_map.erase(fd);
-//                                    close(fd);
-                                    close(proxy_fd);
+                                    if (errno == EAGAIN) {
 
+                                       break;
+
+                                    }
+
+                                    std::cout << "For some reason, remote server connection has an issue!";
+                                    perror("remote_server");
+                                    close_and_clean(fd, proxy_fd, epoll_fd, client_to_proxy_map, proxy_to_client_map);
+                                    break;
                                 }
 
-                            } else if (proxy_sent == 0) {
 
-                                  // Remote server closed proxy port!
-                                  // I feel like, let's try just believing our event can handle it (cleanup ofc)
+                            } else if (read_bytes == 0) {
 
-//                                epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, nullptr);
-                                epoll_ctl(epoll_fd, EPOLL_CTL_DEL, proxy_fd, nullptr);
-//                                client_to_proxy_map.erase(fd);
-                                proxy_to_client_map.erase(fd);
-                                close(fd);
-//                                close(proxy_fd);
+                                std::cout << "Local client (chrome-connectors) closed the connection!\n";
+                                // close_and_clean(fd, proxy_fd, epoll_fd, client_to_proxy_map, proxy_to_client_map);
+                                break;
 
                             } else {
-                                std::cout << "Successfully sent: " << proxy_sent << " to proxy\n";
+
+                                if (errno == EAGAIN) {
+
+                                    break;
+
+                                } else {
+
+                                    std::cout << "Unknown error with client\n";
+                                    std::cout << "Error: " << strerror(errno) << std::endl;
+                                    close_and_clean(fd, proxy_fd, epoll_fd, client_to_proxy_map, proxy_to_client_map);
+                                    break;
+
+                                }
                             }
 
-                        } else if (read_from_fd == 0) {
-                            std::cerr << "Something weird happened to proxy fd: " << fd << "\n";
-                            epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, nullptr);
-//                            epoll_ctl(epoll_fd, EPOLL_CTL_DEL, proxy_fd, nullptr);
-                            client_to_proxy_map.erase(fd);
-//                            proxy_to_client_map.erase(fd);
-                            close(fd);
-//                            close(proxy_fd);
-                        } else {
+                        } // END OF WHILE LOOP
 
-                            if (errno == EAGAIN) {
-                                continue;
-                            }
-
-                            std::cerr << "Something weird happened to proxy fd: " << fd << "\n";
-//                            epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, nullptr);
-                            epoll_ctl(epoll_fd, EPOLL_CTL_DEL, proxy_fd, nullptr);
-//                            client_to_proxy_map.erase(fd);
-                            proxy_to_client_map.erase(fd);
-//                            close(fd);
-                            close(proxy_fd);
-
-                        }
-
-                        continue;
                     }
+
 
                     if (proxy_to_client_map.count(fd)) {
 
-                        // If FD is a key in our proxy map, we know a proxy is writable... So we get the proxy<->client pair;
+                        int client_fd = proxy_to_client_map[fd];
 
-                        int client_fd = proxy_to_client_map.at(fd);
+                        while (true) {
 
-                        //We try reading from the proxy, normally!
-                        Packet pck{};
-                        ssize_t bytes_read_from_proxy = BufferHandler::frame_from_proxy(fd, fd_to_data_map, pck);
+                            uint8_t buf[CHUNK_N_BYTES];
+                            ssize_t bytes_read = read(fd, buf, CHUNK_N_BYTES);
 
-                        std::cout << "frame_from_proxy (proxy_fd: " << fd << ") returned: " << bytes_read_from_proxy
-                                  << " bytes\n";
+                            if (bytes_read > 0) {
 
+                                std::vector<uint8_t> buf_vector(CHUNK_N_BYTES);
+                                memcpy(buf_vector.data(), buf, bytes_read);
+                                std::pair extracted_pair = Utils::extract_http_frame_pay(buf_vector);
 
-                        // We try to un-frame it
-                        std::string unframed_message = BufferHandler::unframe(pck);
+                                std::vector<uint8_t> extracted_vec(extracted_pair.first.begin(),
+                                                                   extracted_pair.first.end());
 
-                        std::cout << "----PCK----" << unframed_message << std::endl;
-                        std::cout << "----PCK2----" << pck.m_message << std::endl;
+                                Packet packet{};
 
-                        if (unframed_message.empty()) {
+                                try {
 
-                            std::cout << ("Unframed message is empty\n");
-                            // continue;
-                            // I'd try something later, where if this fails we just close the socket pair, cause it's useless per say
-                            epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, nullptr);
-                            epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client_fd, nullptr);
-                            client_to_proxy_map.erase(client_fd);
-                            proxy_to_client_map.erase(fd);
-                            close(fd);
-                            close(client_fd);
-                            continue;
-                        }
+                                    packet = BufferHandler::decode(extracted_vec);
 
-                        try {
-                            std::vector<uint8_t> buf(unframed_message.begin(), unframed_message.end());
-                            pck = BufferHandler::decode(buf);
-                        } catch (std::exception &e) {
-                            pck.m_message = {};
-                            //continue;
-                            //Same here
-                            epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, nullptr);
-                            epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client_fd, nullptr);
-                            client_to_proxy_map.erase(client_fd);
-                            proxy_to_client_map.erase(fd);
-                            close(fd);
-                            close(client_fd);
-                            continue;
+                                } catch (std::exception &e) {
 
-                            // i could throw everything in an std::runtime exception but lol
-                        }
+                                    std::cerr << "Error decoding packet: " << e.what() << std::endl;
+                                    packet.set_packet_flags(Flags::CORRUPT_DATA);
+                                    break;
 
-
-                        if (bytes_read_from_proxy > 0) {
-
-                            std::cout << "--- READ FROM PROXY: " << fd << " : " << pck.m_message << std::endl;
-
-
-                            std::vector<uint8_t> temp = std::vector<uint8_t>(pck.m_message.begin(),
-                                                                             pck.m_message.end());
-
-
-                            ssize_t bytes_written = BufferHandler::frame_to_proxy(temp, client_fd);
-
-                            std::cout << "frame_to_client (client_fd: " << client_fd << ") wrote: " << bytes_written
-                                      << " bytes\n";
-
-
-                            if (bytes_written > 0) {
-
-                                std::cout << "Successfully sent from proxy_fd: " << fd << " back to client_fd: "
-                                          << client_fd << ": " << bytes_written << " bytes" << std::endl;
-
-                            } else if (bytes_written == 0) {
-
-//                                std::cout << "Proxy fd: " << fd << " closed connection after write\n";
-//                                std::cout << "Cleanup and close proxy_fd: " << fd << " and client_fd: " << client_fd
-//                                          << std::endl;
-//                                epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client_fd, nullptr);
-//                                epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, nullptr);
-//                                close(fd);
-//                                close(client_fd);
-//                                proxy_to_client_map.erase(fd);
-//                                client_to_proxy_map.erase(client_fd);
-//                                continue; // Important: Continue to next event
-
-                            } else { // bytes_written < 0 (Error)
-
-                                if (errno == EPIPE) {
-                                    std::cerr << "EPIPE error writing from proxy_fd: " << fd << " to client_fd: "
-                                              << client_fd << ". Connection broken.\n";
-                                } else if (errno != EWOULDBLOCK && errno != EAGAIN) {
-                                    std::cerr << "Something weird occurred ( p->c write): " << strerror(errno) << '\n';
                                 }
 
-//                                std::cout << "Cleanup and close proxy_fd: " << fd << " and client_fd: " << client_fd
-//                                          << std::endl;
-//                                epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client_fd, nullptr);
-//                                epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, nullptr);
-////                                close(fd);
-////                                close(client_fd);
-////                                proxy_to_client_map.erase(fd);
-////                                client_to_proxy_map.erase(client_fd);
-////                                continue; // Important: Continue to next event
+                                std::vector<uint8_t> packet_message_vec{packet.get_message().begin(),
+                                                                        packet.get_message().end()};
+
+                                ssize_t bytes_sent = BufferHandler::frame_to_proxy(packet_message_vec, client_fd);
+
+                                if (bytes_sent > 0) {
+
+                                    std::cout << "Forwarded successfully to our client applications (Chrome)\n";
+
+                                } else if (bytes_sent == 0) {
+
+                                    std::cout << "For some reason, our client apps closed the connection!";
+                                    perror("client-apps");
+                                    close(fd);
+                                    close(client_fd);
+                                    epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, nullptr);
+                                    epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client_fd, nullptr);
+                                    break;
+
+                                } else {
+
+                                    if (errno == EAGAIN) {
+
+                                        break;
+
+                                    }
+
+                                    std::cout << "For some reason, our client apps act weird!\n";
+                                    perror("client-apps");
+                                    close(fd);
+                                    close(client_fd);
+                                    epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, nullptr);
+                                    epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client_fd, nullptr);
+                                    break;
+
+
+                                }
+
+                            } else if (bytes_read == 0) {
+
+                                std::cout << "For some reason, our client apps act weird!\n";
+                                perror("client-apps");
+                                close(fd);
+                                close(client_fd);
+                                epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, nullptr);
+                                epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client_fd, nullptr);
+                                break;
+
+                            } else {
+
+                                if (errno == EAGAIN) break;
+
+                                std::cout << "For some reason, our proxy act weird!\n";
+                                perror("remote proxy");
+                                close(fd);
+                                close(client_fd);
+                                epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, nullptr);
+                                epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client_fd, nullptr);
+
                             }
-
-                        } else if (bytes_read_from_proxy == 0) {
-
-                            std::cout << "Proxy fd: " << fd << " closed connection during read\n";
-                            std::cout << "Cleanup and close proxy_fd: " << fd << " and client_fd: " << client_fd
-                                      << std::endl;
-//                            epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client_fd, nullptr);
-//                            epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, nullptr);
-//                            close(fd);
-//                            close(client_fd);
-//                            proxy_to_client_map.erase(fd);
-//                            client_to_proxy_map.erase(client_fd);
-//                            continue; // Important: Continue to next event
-
-                            continue;
-
-                        } else { // bytes_read_from_proxy < 0
-
-                            std::cout << "Something weird occurred: (proxy read): " << strerror(errno) << '\n';
-                            // Removed cleanup block from here as it might be too aggressive.
-                            // Let's investigate other errors first.  If still crashing, re-add cleanup.
-                            continue; // Important: Continue to next event
 
                         }
 
                     }
 
+
                 }
 
-            } else if (ev.events & (EPOLLRDHUP | EPOLLHUP)) { // Handle hang up events!
-                int fd = ev.data.fd;
-                std::cout << "EPOLLRDHUP or EPOLLHUP event on fd: " << fd << std::endl;
-                int client_fd = -1, proxy_fd = -1;
+
+            } else if (events[i].events & (EPOLLHUP | EPOLLRDHUP)) {
+
+                int fd = events[i].data.fd;
 
                 if (client_to_proxy_map.count(fd)) {
-                    proxy_fd = client_to_proxy_map[fd];
+
+                    int proxy_fd = client_to_proxy_map[fd];
+                    std::cout << "Cleaning up closed client socket pair (c :::: p): " << fd << " :::: " << proxy_fd
+                              << std::endl;
                     client_to_proxy_map.erase(fd);
                     proxy_to_client_map.erase(proxy_fd);
-                    client_fd = fd;
-                } else if (proxy_to_client_map.count(fd)) {
-                    client_fd = proxy_to_client_map[fd];
+                    epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, nullptr);
+                    epoll_ctl(epoll_fd, EPOLL_CTL_DEL, proxy_fd, nullptr);
+                    close(fd);
+                    close(proxy_fd);
+                    break;
+                }
+
+                if (proxy_to_client_map.count(fd)) {
+
+                    int client_fd = proxy_to_client_map[fd];
+                    std::cout << "Cleaning up closed proxy socket pair (p :::: c): " << fd << " :::: " << client_fd
+                              << std::endl;
+
                     proxy_to_client_map.erase(fd);
                     client_to_proxy_map.erase(client_fd);
-                    proxy_fd = fd;
-                }
-
-                fd_to_data_map.erase(fd);
-
-                if (client_fd != -1) {
-                    std::cout << "Cleanup and close fd: " << client_fd;
-                    if (proxy_fd != -1) std::cout << " and proxy_fd: " << proxy_fd;
-                    std::cout << std::endl;
+                    epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, nullptr);
                     epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client_fd, nullptr);
+                    close(fd);
                     close(client_fd);
-                    if (proxy_fd != -1) {
-                        epoll_ctl(epoll_fd, EPOLL_CTL_DEL, proxy_fd, nullptr);
-                        close(proxy_fd);
-                    }
+                    break;
                 }
-                continue; // Continue to next event
+
+                epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, nullptr);
+                close(fd);
             }
-
-
         }
-
-
     }
-
     cleanup();
 }
 
 
-void cleanup() {
+[[maybe_unused]] void cleanup() {
     puts("\nCleaning up held resources!\n");
     exit(EXIT_SUCCESS);
 }

@@ -15,6 +15,7 @@ class ZCompressor {
 public:
     static std::vector<uint8_t> compress(const std::vector<uint8_t> &input) {
         z_stream stream{};
+
         if (deflateInit2(&stream, Z_BEST_COMPRESSION, Z_DEFLATED, 15 + 16, 8, Z_DEFAULT_STRATEGY) != Z_OK) {
             throw std::runtime_error("Failed to initialize compression");
         }
