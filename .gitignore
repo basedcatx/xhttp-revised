@@ -16,3 +16,6 @@ xhttp_c
 xhttp_s
 test_c
 tests
+.cmake
+.idea
+Testing/*
