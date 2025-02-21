@@ -787,7 +787,6 @@ public:
 
         void *numericAddress;
         char addrBuff[INET6_ADDRSTRLEN];
-   //     std::array<char, INET6_ADDRSTRLEN> addrBuff{};
         in_port_t port;
 
         switch (address->sa_family) {
