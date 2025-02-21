@@ -45,34 +45,6 @@
 					<DistClean command="/usr/bin/gmake -f &quot;/mnt/c/Users/BaseDCaTx/CLionProjects/xhttp-revised/Makefile&quot;  VERBOSE=1 clean"/>
 				</MakeCommands>
 			</Target>
-			<Target title="test_c">
-				<Option output="/mnt/c/Users/BaseDCaTx/CLionProjects/xhttp-revised/test_c" prefix_auto="0" extension_auto="0"/>
-				<Option working_dir="/mnt/c/Users/BaseDCaTx/CLionProjects/xhttp-revised"/>
-				<Option object_output="./"/>
-				<Option type="1"/>
-				<Option compiler="gcc"/>
-				<Compiler/>
-				<MakeCommands>
-					<Build command="/usr/bin/gmake -f &quot;/mnt/c/Users/BaseDCaTx/CLionProjects/xhttp-revised/Makefile&quot;  VERBOSE=1 test_c"/>
-					<CompileFile command="/usr/bin/gmake -f &quot;/mnt/c/Users/BaseDCaTx/CLionProjects/xhttp-revised/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
-					<Clean command="/usr/bin/gmake -f &quot;/mnt/c/Users/BaseDCaTx/CLionProjects/xhttp-revised/Makefile&quot;  VERBOSE=1 clean"/>
-					<DistClean command="/usr/bin/gmake -f &quot;/mnt/c/Users/BaseDCaTx/CLionProjects/xhttp-revised/Makefile&quot;  VERBOSE=1 clean"/>
-				</MakeCommands>
-			</Target>
-			<Target title="test_c/fast">
-				<Option output="/mnt/c/Users/BaseDCaTx/CLionProjects/xhttp-revised/test_c" prefix_auto="0" extension_auto="0"/>
-				<Option working_dir="/mnt/c/Users/BaseDCaTx/CLionProjects/xhttp-revised"/>
-				<Option object_output="./"/>
-				<Option type="1"/>
-				<Option compiler="gcc"/>
-				<Compiler/>
-				<MakeCommands>
-					<Build command="/usr/bin/gmake -f &quot;/mnt/c/Users/BaseDCaTx/CLionProjects/xhttp-revised/Makefile&quot;  VERBOSE=1 test_c/fast"/>
-					<CompileFile command="/usr/bin/gmake -f &quot;/mnt/c/Users/BaseDCaTx/CLionProjects/xhttp-revised/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
-					<Clean command="/usr/bin/gmake -f &quot;/mnt/c/Users/BaseDCaTx/CLionProjects/xhttp-revised/Makefile&quot;  VERBOSE=1 clean"/>
-					<DistClean command="/usr/bin/gmake -f &quot;/mnt/c/Users/BaseDCaTx/CLionProjects/xhttp-revised/Makefile&quot;  VERBOSE=1 clean"/>
-				</MakeCommands>
-			</Target>
 			<Target title="xhttp_s">
 				<Option output="/mnt/c/Users/BaseDCaTx/CLionProjects/xhttp-revised/xhttp_s" prefix_auto="0" extension_auto="0"/>
 				<Option working_dir="/mnt/c/Users/BaseDCaTx/CLionProjects/xhttp-revised"/>
@@ -127,38 +99,29 @@
 		</Unit>
 		<Unit filename="/mnt/c/Users/BaseDCaTx/CLionProjects/xhttp-revised/includes/compressor.h">
 			<Option target="xhttp_c"/>
-			<Option target="test_c"/>
 			<Option target="xhttp_s"/>
 		</Unit>
 		<Unit filename="/mnt/c/Users/BaseDCaTx/CLionProjects/xhttp-revised/includes/crypt.h">
 			<Option target="xhttp_c"/>
-			<Option target="test_c"/>
 			<Option target="xhttp_s"/>
 		</Unit>
 		<Unit filename="/mnt/c/Users/BaseDCaTx/CLionProjects/xhttp-revised/includes/packet.h">
 			<Option target="xhttp_c"/>
-			<Option target="test_c"/>
 			<Option target="xhttp_s"/>
 		</Unit>
 		<Unit filename="/mnt/c/Users/BaseDCaTx/CLionProjects/xhttp-revised/includes/utilx.h">
 			<Option target="xhttp_c"/>
-			<Option target="test_c"/>
 			<Option target="xhttp_s"/>
 		</Unit>
 		<Unit filename="/mnt/c/Users/BaseDCaTx/CLionProjects/xhttp-revised/logger/Logger.cpp">
 			<Option target="xhttp_c"/>
-			<Option target="test_c"/>
 			<Option target="xhttp_s"/>
 		</Unit>
 		<Unit filename="/mnt/c/Users/BaseDCaTx/CLionProjects/xhttp-revised/server/Server.cpp">
 			<Option target="xhttp_s"/>
 		</Unit>
-		<Unit filename="/mnt/c/Users/BaseDCaTx/CLionProjects/xhttp-revised/tests/test.cpp">
-			<Option target="test_c"/>
-		</Unit>
 		<Unit filename="/mnt/c/Users/BaseDCaTx/CLionProjects/xhttp-revised/utils/Utils.cpp">
 			<Option target="xhttp_c"/>
-			<Option target="test_c"/>
 			<Option target="xhttp_s"/>
 		</Unit>
 		<Unit filename="/mnt/c/Users/BaseDCaTx/CLionProjects/xhttp-revised/CMakeLists.txt">

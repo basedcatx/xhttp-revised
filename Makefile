@@ -130,19 +130,6 @@ xhttp_c/fast:
 .PHONY : xhttp_c/fast
 
 #=============================================================================
-# Target rules for targets named test_c
-
-# Build rule for target.
-test_c: cmake_check_build_system
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 test_c
-.PHONY : test_c
-
-# fast build rule for target.
-test_c/fast:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_c.dir/build.make CMakeFiles/test_c.dir/build
-.PHONY : test_c/fast
-
-#=============================================================================
 # Target rules for targets named xhttp_s
 
 # Build rule for target.
@@ -185,7 +172,6 @@ logger/Logger.o: logger/Logger.cpp.o
 # target to build an object file
 logger/Logger.cpp.o:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/xhttp_c.dir/build.make CMakeFiles/xhttp_c.dir/logger/Logger.cpp.o
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_c.dir/build.make CMakeFiles/test_c.dir/logger/Logger.cpp.o
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/xhttp_s.dir/build.make CMakeFiles/xhttp_s.dir/logger/Logger.cpp.o
 .PHONY : logger/Logger.cpp.o
 
@@ -195,7 +181,6 @@ logger/Logger.i: logger/Logger.cpp.i
 # target to preprocess a source file
 logger/Logger.cpp.i:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/xhttp_c.dir/build.make CMakeFiles/xhttp_c.dir/logger/Logger.cpp.i
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_c.dir/build.make CMakeFiles/test_c.dir/logger/Logger.cpp.i
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/xhttp_s.dir/build.make CMakeFiles/xhttp_s.dir/logger/Logger.cpp.i
 .PHONY : logger/Logger.cpp.i
 
@@ -205,7 +190,6 @@ logger/Logger.s: logger/Logger.cpp.s
 # target to generate assembly for a file
 logger/Logger.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/xhttp_c.dir/build.make CMakeFiles/xhttp_c.dir/logger/Logger.cpp.s
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_c.dir/build.make CMakeFiles/test_c.dir/logger/Logger.cpp.s
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/xhttp_s.dir/build.make CMakeFiles/xhttp_s.dir/logger/Logger.cpp.s
 .PHONY : logger/Logger.cpp.s
 
@@ -233,37 +217,12 @@ server/Server.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/xhttp_s.dir/build.make CMakeFiles/xhttp_s.dir/server/Server.cpp.s
 .PHONY : server/Server.cpp.s
 
-tests/test.o: tests/test.cpp.o
-.PHONY : tests/test.o
-
-# target to build an object file
-tests/test.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_c.dir/build.make CMakeFiles/test_c.dir/tests/test.cpp.o
-.PHONY : tests/test.cpp.o
-
-tests/test.i: tests/test.cpp.i
-.PHONY : tests/test.i
-
-# target to preprocess a source file
-tests/test.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_c.dir/build.make CMakeFiles/test_c.dir/tests/test.cpp.i
-.PHONY : tests/test.cpp.i
-
-tests/test.s: tests/test.cpp.s
-.PHONY : tests/test.s
-
-# target to generate assembly for a file
-tests/test.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_c.dir/build.make CMakeFiles/test_c.dir/tests/test.cpp.s
-.PHONY : tests/test.cpp.s
-
 utils/Utils.o: utils/Utils.cpp.o
 .PHONY : utils/Utils.o
 
 # target to build an object file
 utils/Utils.cpp.o:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/xhttp_c.dir/build.make CMakeFiles/xhttp_c.dir/utils/Utils.cpp.o
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_c.dir/build.make CMakeFiles/test_c.dir/utils/Utils.cpp.o
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/xhttp_s.dir/build.make CMakeFiles/xhttp_s.dir/utils/Utils.cpp.o
 .PHONY : utils/Utils.cpp.o
 
@@ -273,7 +232,6 @@ utils/Utils.i: utils/Utils.cpp.i
 # target to preprocess a source file
 utils/Utils.cpp.i:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/xhttp_c.dir/build.make CMakeFiles/xhttp_c.dir/utils/Utils.cpp.i
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_c.dir/build.make CMakeFiles/test_c.dir/utils/Utils.cpp.i
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/xhttp_s.dir/build.make CMakeFiles/xhttp_s.dir/utils/Utils.cpp.i
 .PHONY : utils/Utils.cpp.i
 
@@ -283,7 +241,6 @@ utils/Utils.s: utils/Utils.cpp.s
 # target to generate assembly for a file
 utils/Utils.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/xhttp_c.dir/build.make CMakeFiles/xhttp_c.dir/utils/Utils.cpp.s
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_c.dir/build.make CMakeFiles/test_c.dir/utils/Utils.cpp.s
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/xhttp_s.dir/build.make CMakeFiles/xhttp_s.dir/utils/Utils.cpp.s
 .PHONY : utils/Utils.cpp.s
 
@@ -295,7 +252,6 @@ help:
 	@echo "... depend"
 	@echo "... edit_cache"
 	@echo "... rebuild_cache"
-	@echo "... test_c"
 	@echo "... xhttp_c"
 	@echo "... xhttp_s"
 	@echo "... client/Client.o"
@@ -307,9 +263,6 @@ help:
 	@echo "... server/Server.o"
 	@echo "... server/Server.i"
 	@echo "... server/Server.s"
-	@echo "... tests/test.o"
-	@echo "... tests/test.i"
-	@echo "... tests/test.s"
 	@echo "... utils/Utils.o"
 	@echo "... utils/Utils.i"
 	@echo "... utils/Utils.s"

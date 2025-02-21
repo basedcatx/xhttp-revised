@@ -22,17 +22,17 @@ add_executable(xhttp_c
 
         )
 
-add_executable(
-        test_c
-
-        tests/test.cpp
-        logger/Logger.cpp
-        includes/crypt.h
-        includes/utilx.h
-        includes/packet.h
-        utils/Utils.cpp
-        includes/compressor.h
-)
+#add_executable(
+#        test_c
+#
+#        tests/test.cpp
+#        logger/Logger.cpp
+#        includes/crypt.h
+#        includes/utilx.h
+#        includes/packet.h
+#        utils/Utils.cpp
+#        includes/compressor.h
+#)
 
 add_executable(xhttp_s
 
@@ -44,9 +44,9 @@ add_executable(xhttp_s
         utils/Utils.cpp
         includes/compressor.h)
 
-target_link_libraries(test_c PRIVATE ZLIB::ZLIB)
+#target_link_libraries(test_c PRIVATE ZLIB::ZLIB)
 target_link_libraries(xhttp_c PRIVATE ZLIB::ZLIB)
 target_link_libraries(xhttp_s PRIVATE ZLIB::ZLIB)
 target_link_libraries(xhttp_c PRIVATE OpenSSL::Crypto OpenSSL::SSL)
-target_link_libraries(test_c PRIVATE OpenSSL::Crypto OpenSSL::SSL)
+#target_link_libraries(test_c PRIVATE OpenSSL::Crypto OpenSSL::SSL)
 target_link_libraries(xhttp_s PRIVATE OpenSSL::Crypto OpenSSL::SSL)
