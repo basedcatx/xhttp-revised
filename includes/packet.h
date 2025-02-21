@@ -29,7 +29,7 @@ enum Flags {
     CORRUPT_DATA = 0x0020
 };
 
-#define CHUNK_N_BYTES (1024 * 16)
+#define CHUNK_N_BYTES (1024 * 25)
 
 std::string HTTP_TEMPLATE_BASIC = R"(HTTP/1.1\r\n200/r/n[crlf]/r/n)";
 std::string HTTP_TEMPLATE_PACKET_BODY_REGEX = R"(/r/n(.*?)/r/n)";
