@@ -14,7 +14,23 @@
 #include <memory>
 #include "crypt.h"
 #include <regex>
-
+#include <fcntl.h>
+#include <zlib.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <utility>
+#include <vector>
+#include <stdexcept>
+#include <netdb.h>
+#include <netinet/tcp.h>
+#include <openssl/types.h>
+#include <openssl/evp.h>
+#include <openssl/rand.h>
+#include <cstring>
+#include <iostream>
+#include "logger.h"
+#include <vector>
+#include <array>
 #include "compressor.h"
 #include "utilx.h"
 #include "logger.h"
