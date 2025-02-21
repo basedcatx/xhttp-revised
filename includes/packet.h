@@ -786,7 +786,8 @@ public:
         if (address == nullptr) return;
 
         void *numericAddress;
-        std::array<char, INET6_ADDRSTRLEN> addrBuff{};
+        char addrBuff[INET6_ADDRSTRLEN];
+   //     std::array<char, INET6_ADDRSTRLEN> addrBuff{};
         in_port_t port;
 
         switch (address->sa_family) {
@@ -804,10 +805,10 @@ public:
         }
 
         // Convert the address to a readable format
-        if (inet_ntop(address->sa_family, numericAddress, addrBuff.data(), addrBuff.size()) == nullptr) {
+        if (inet_ntop(address->sa_family, numericAddress, addrBuff, INET6_ADDRSTRLEN) == nullptr) {
             std::cout << "[Invalid address]"; // Unable to convert!
         } else {
-            std::cout << addrBuff.data(); // Print the address
+            std::cout << addrBuff; // Print the address
             std::cout << "\nPort: " << port << std::endl;
         }
     }
