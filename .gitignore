@@ -12,3 +12,7 @@ _deps
 CMakeUserPresets.json
 .out
 cmake-build-debug
+xhttp_c
+xhttp_s
+test_c
+tests
