@@ -4,6 +4,7 @@
 
 #include <iostream>
 #include <vector>
+#include <cstdint>
 #include <cstring>
 
 std::vector<int> computeLPSArray(const std::string &pattern) {
