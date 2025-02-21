@@ -1,6 +1,7 @@
 #include "../includes/utilx.h"
 #include "../includes/logger.h"
 #include "sys/epoll.h"
+#include "../includes/packet.h"
 #include <unistd.h>
 #include <csignal>
 #include <vector>

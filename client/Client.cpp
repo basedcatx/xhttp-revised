@@ -1,5 +1,6 @@
 #include "../includes/utilx.h"
 #include "../includes/logger.h"
+#include "../includes/packet.h"
 #include <sys/select.h>
 #include <unistd.h>
 #include <thread>
@@ -7,6 +8,7 @@
 #include <vector>
 #include <sys/epoll.h>
 #include <iostream> // Included for std::cerr and std::cout
+#include <map>
 
 #define DEF_LOCAL_PORT "8090"
 #define PROXY_HOST "170.205.31.126"
