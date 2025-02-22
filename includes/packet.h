@@ -45,12 +45,13 @@ enum Flags {
     CORRUPT_DATA = 0x0020
 };
 
-#define CHUNK_N_BYTES (1024 * 25)
+#define CHUNK_N_BYTES (1024 * 16)
 
-std::string HTTP_TEMPLATE_BASIC = R"(HTTP/1.1\r\n200/r/n[crlf]/r/n)";
-std::string HTTP_TEMPLATE_PACKET_BODY_REGEX = R"(/r/n(.*?)/r/n)";
-std::string HTTP_PACKET_BODY_PLACEHOLDER = "[crlf]";
-std::string HTTP_DELIM = R"(/r/n)";
+std::string HTTP_TEMPLATE_BASIC = R"(HTTP/1.1 200 OK\r\n[lrlf]\r\n\r\n[prlf])";
+std::string HTTP_PACKET_BODY_PLACEHOLDER = "[prlf]";
+std::string HTTP_PACKET_LEN_PLACEHOLDER = "[lrlf]";
+std::string HTTP_HEADER_DELIM = R"(\r\n\r\n)";
+std::string HTTP_CONTENT_LEN_DELIM = R"(\r\n)";
 #define MAX_CONNECTED_SOCKS 10000
 
 
@@ -190,7 +191,7 @@ public:
 
     static std::pair<std::string, size_t> extract_http_frame_pay(std::vector<uint8_t> &buf) {
         std::string buf_str(buf.begin(), buf.end());
-        std::string delim = HTTP_DELIM;
+        std::string delim = HTTP_HEADER_DELIM;
 
         size_t start_pos = buf_str.find(delim);
 
@@ -670,18 +671,41 @@ public:
     static std::vector<uint8_t> frame(std::vector<uint8_t> &buf, std::string &header = HTTP_TEMPLATE_BASIC) {
 
         std::string h_template = header;
-        std::string data = {buf.begin(), buf.end()};
+
         ulong index = h_template.find(HTTP_PACKET_BODY_PLACEHOLDER);
+        ulong len_index = h_template.find(HTTP_PACKET_LEN_PLACEHOLDER);
 
         if (index == std::string::npos) {
             return {};
         }
 
-        h_template.replace(index, HTTP_PACKET_BODY_PLACEHOLDER.size(), data);
-        ssize_t total_sent = 0;
+        if (len_index == std::string::npos) {
+            return {};
+        }
 
-        std::cout << "\n---" << h_template << "---\n";
-        return std::vector<uint8_t>{h_template.begin(), h_template.end()};
+        std::vector<uint8_t> ret;
+        ret.resize(buf.size() + header.size());
+
+        size_t offset{0};
+
+        for (int i = 0; i < len_index; i++) {
+            ret[i] = h_template[i];
+            offset += 1;
+        }
+
+        uint32_t pay_len_nb = htonl(buf.size());
+        std::memcpy(ret.data() + offset, &pay_len_nb, sizeof(uint32_t));
+        offset += sizeof(uint32_t);
+
+        memcpy(ret.data() + offset, HTTP_HEADER_DELIM.data(), HTTP_HEADER_DELIM.size());
+        offset += HTTP_HEADER_DELIM.size();
+
+        memcpy(ret.data() + offset, buf.data(), buf.size());
+        offset += buf.size();
+
+        ret.resize(offset);
+
+        return ret;
     }
 
    inline static ssize_t frame_to_proxy(std::vector<uint8_t> &buf, int sock) {
@@ -689,7 +713,6 @@ public:
         ssize_t total_sent = 0;
 
         //  std::cout << "\n---" << data << "-- n";
-
 
         while (total_sent < buf.size()) {
             size_t bytes_to_send = std::min((size_t) CHUNK_N_BYTES, buf.size() - total_sent);
@@ -707,14 +730,15 @@ public:
 // don't worry about this i'd use it for DSA references
 
 class KMPMatcher {
+
 public:
     explicit KMPMatcher(std::string pattern) : pattern(std::move(pattern)) {
         computeLPSArray();
     }
 
-    std::vector<int> search(const std::string &text) {
+    std::vector<int> search(const std::vector<uint8_t> &text) {
         std::vector<int> result;
-        size_t textLen = text.length();
+        size_t textLen = text.size();
         size_t patLen = pattern.length();
 
         if (patLen > textLen) {
@@ -748,7 +772,7 @@ private:
     std::vector<int> lps;
 
     void computeLPSArray() {
-        int patLen = pattern.length();
+        size_t patLen = pattern.length();
         lps.resize(patLen);
         int len = 0;
         lps[0] = 0;

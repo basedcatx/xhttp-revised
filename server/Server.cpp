@@ -107,7 +107,8 @@ int main(int argc, char *argv[]) {
 
                 if (proxy_sock < 0) {
                     std::cerr << "Your HTTP/HTTPS Proxy server is not running... please make sure it is!";
-                    close_and_clean(client_fd, proxy_sock, epoll_fd, clients_to_proxy_socks_map, proxy_socks_to_client_map);
+                    close_and_clean(client_fd, proxy_sock, epoll_fd, clients_to_proxy_socks_map,
+                                    proxy_socks_to_client_map);
                     continue; // Changed break to continue to not exit the entire loop on proxy connect fail.
                 }
 
@@ -156,34 +157,105 @@ int main(int argc, char *argv[]) {
                     std::vector<uint8_t> client_buffer; // Accumulation buffer for client data
 
                     while (true) {
+
                         uint8_t buf[CHUNK_N_BYTES];
                         ssize_t bytes_read = read(fd, buf, CHUNK_N_BYTES);
 
                         if (bytes_read > 0) {
+
                             std::cout << "Read " << bytes_read << " bytes from client fd " << fd << std::endl;
                             client_buffer.insert(client_buffer.end(), buf, buf + bytes_read);
-                            if (bytes_read < CHUNK_N_BYTES) {
-                                continue; // Partial read, try to read more if available
+
+                            while (true) {
+
+                                std::vector<int> found = KMPMatcher(HTTP_HEADER_DELIM).search(client_buffer);
+
+                                if (found.empty()) {
+                                    break;
+                                }
+
+                                ssize_t header_delim_index = found[0];
+
+                                if (header_delim_index < 0) {
+
+                                    break;
+
+                                }
+
+                                if (header_delim_index < sizeof(uint32_t)) {
+
+                                    std::cerr << "Premature bytes received... trying again\n";
+                                    client_buffer.erase(client_buffer.begin(),
+                                                        client_buffer.begin() + header_delim_index +
+                                                        HTTP_HEADER_DELIM.size());
+                                    break;
+
+                                }
+
+                                size_t payload_len_offset = header_delim_index - sizeof(uint32_t);
+                                uint32_t payload_size_nb_o;
+                                std::memcpy(&payload_size_nb_o, client_buffer.data() + payload_len_offset,
+                                            sizeof(uint32_t));
+
+                                uint32_t payload_size = ntohl(payload_size_nb_o);
+
+                                size_t total_message_size =
+                                        header_delim_index + HTTP_HEADER_DELIM.size() + payload_size;
+
+                                if (client_buffer.size() >= total_message_size) {
+
+                                    std::cout << "Complete message received, payload size: " << payload_size
+                                              << std::endl;
+                                    std::vector<uint8_t> payload{
+                                            client_buffer.begin() + header_delim_index + HTTP_HEADER_DELIM.size(),
+                                            client_buffer.end()};
+
+                                    Packet pck{};
+
+                                    try {
+
+                                        pck = BufferHandler::decode(payload);
+
+                                    } catch (std::exception &e) {
+
+                                        std::cerr << "Error occurred: " << e.what();
+                                        break;
+
+                                    }
+
+                                    std::vector<uint8_t> bytes_to_send{pck.get_message().begin(),
+                                                                       pck.get_message().end()};
+                                    ssize_t bytes_sent = BufferHandler::frame_to_proxy(bytes_to_send, s_proxy_fd);
+
+                                    client_buffer.erase(client_buffer.begin(),
+                                                        client_buffer.begin() + total_message_size);
+                                }
+
                             }
+
 
                         } else if (bytes_read == 0) {
                             std::cout << "The end-client closed the connection on fd " << fd << "\n";
-                            close_and_clean(fd, s_proxy_fd, epoll_fd, clients_to_proxy_socks_map, proxy_socks_to_client_map);
+                            close_and_clean(fd, s_proxy_fd, epoll_fd, clients_to_proxy_socks_map,
+                                            proxy_socks_to_client_map);
                             break;
                         } else { // bytes_read < 0
                             if (errno == EAGAIN || errno == EWOULDBLOCK) {
                                 std::cout << "EAGAIN/EWOULDBLOCK on client fd " << fd << ", no more data right now.\n";
                                 break; // No more data available right now
                             } else {
-                                std::cerr << "Error reading from client fd " << fd << ": " << strerror(errno) << std::endl;
-                                close_and_clean(fd, s_proxy_fd, epoll_fd, clients_to_proxy_socks_map, proxy_socks_to_client_map);
+                                std::cerr << "Error reading from client fd " << fd << ": " << strerror(errno)
+                                          << std::endl;
+                                close_and_clean(fd, s_proxy_fd, epoll_fd, clients_to_proxy_socks_map,
+                                                proxy_socks_to_client_map);
                                 break;
                             }
                         }
                     } // End of client read while loop
 
                     if (!client_buffer.empty()) {
-                        std::cout << "Processing accumulated " << client_buffer.size() << " bytes from client fd " << fd << std::endl;
+                        std::cout << "Processing accumulated " << client_buffer.size() << " bytes from client fd " << fd
+                                  << std::endl;
 
                         std::vector<uint8_t> extracted_vec;
                         try {
@@ -192,25 +264,32 @@ int main(int argc, char *argv[]) {
                             Packet packet = BufferHandler::decode(extracted_vec);
 
 
-                            std::vector<uint8_t> packet_message_vec{packet.get_message().begin(), packet.get_message().end()};
+                            std::vector<uint8_t> packet_message_vec{packet.get_message().begin(),
+                                                                    packet.get_message().end()};
                             ssize_t bytes_sent = BufferHandler::frame_to_proxy(packet_message_vec, s_proxy_fd);
 
 
                             if (bytes_sent > 0) {
+
                                 std::cout << "Forwarded successfully to our proxy server (HTTP-handler)\n";
+
                             } else if (bytes_sent == 0) {
                                 std::cout << "For some reason, our proxy closed the connection! (bytes_sent=0)\n";
                                 perror("Proxy(HTTP)");
-                                close_and_clean(fd, s_proxy_fd, epoll_fd, clients_to_proxy_socks_map, proxy_socks_to_client_map);
+                                close_and_clean(fd, s_proxy_fd, epoll_fd, clients_to_proxy_socks_map,
+                                                proxy_socks_to_client_map);
                             } else {
-                                std::cerr << "Error sending to proxy from client fd " << fd << ": " << strerror(errno) << std::endl;
-                                close_and_clean(fd, s_proxy_fd, epoll_fd, clients_to_proxy_socks_map, proxy_socks_to_client_map);
+                                std::cerr << "Error sending to proxy from client fd " << fd << ": " << strerror(errno)
+                                          << std::endl;
+                                close_and_clean(fd, s_proxy_fd, epoll_fd, clients_to_proxy_socks_map,
+                                                proxy_socks_to_client_map);
                             }
 
 
                         } catch (std::exception &e) {
                             std::cerr << "Error decoding packet from client fd " << fd << ": " << e.what() << std::endl;
-                            close_and_clean(fd, s_proxy_fd, epoll_fd, clients_to_proxy_socks_map, proxy_socks_to_client_map);
+                            close_and_clean(fd, s_proxy_fd, epoll_fd, clients_to_proxy_socks_map,
+                                            proxy_socks_to_client_map);
                         }
                     } else {
                         std::cout << "No data to process from client fd " << fd << " this time.\n";
@@ -228,23 +307,25 @@ int main(int argc, char *argv[]) {
                         ssize_t bytes_read = read(fd, buf, CHUNK_N_BYTES);
 
                         if (bytes_read > 0) {
+
                             std::cout << "Read: " << bytes_read << " bytes from local proxy(HTTP) fd " << fd << "\n";
                             proxy_buffer.insert(proxy_buffer.end(), buf, buf + bytes_read);
-                            if (bytes_read < CHUNK_N_BYTES) {
-                                continue; // Partial read, try to read more if available
-                            }
+                            continue;
 
                         } else if (bytes_read == 0) {
                             std::cout << "Our proxy(http) closed the connection on fd " << fd << "\n";
-                            close_and_clean(client_fd, fd, epoll_fd, clients_to_proxy_socks_map, proxy_socks_to_client_map);
+                            close_and_clean(client_fd, fd, epoll_fd, clients_to_proxy_socks_map,
+                                            proxy_socks_to_client_map);
                             break;
                         } else { // bytes_read < 0
                             if (errno == EAGAIN || errno == EWOULDBLOCK) {
                                 std::cout << "EAGAIN/EWOULDBLOCK on proxy fd " << fd << ", no more data right now.\n";
                                 break; // No more data right now
                             } else {
-                                std::cerr << "Error reading from proxy fd " << fd << ": " << strerror(errno) << std::endl;
-                                close_and_clean(client_fd, fd, epoll_fd, clients_to_proxy_socks_map, proxy_socks_to_client_map);
+                                std::cerr << "Error reading from proxy fd " << fd << ": " << strerror(errno)
+                                          << std::endl;
+                                close_and_clean(client_fd, fd, epoll_fd, clients_to_proxy_socks_map,
+                                                proxy_socks_to_client_map);
                                 break;
                             }
                         }
@@ -252,27 +333,36 @@ int main(int argc, char *argv[]) {
 
 
                     if (!proxy_buffer.empty()) {
-                        std::cout << "Processing accumulated " << proxy_buffer.size() << " bytes from proxy fd " << fd << "\n";
+                        std::cout << "Processing accumulated " << proxy_buffer.size() << " bytes from proxy fd " << fd
+                                  << "\n";
 
                         Packet pck{};
                         pck.set_packet_flags(Flags::IS_RESPONSE_FLAG | Flags::COMPRESSION_FLAG);
                         pck.set_message(proxy_buffer.data(), proxy_buffer.size());
                         pck.print_packet_details();
 
+                        //Others
+
                         std::vector<uint8_t> buf_to_send = BufferHandler::encode(pck);
-                        std::vector<uint8_t> framed = BufferHandler::frame(buf_to_send, const_cast<std::string &>(pck.get_http_response_format()));
+                        std::vector<uint8_t> framed = BufferHandler::frame(buf_to_send,
+                                                                           const_cast<std::string &>(pck.get_http_response_format()));
                         ssize_t bytes_sent = BufferHandler::frame_to_proxy(framed, client_fd);
 
 
                         if (bytes_sent > 0) {
+
                             std::cout << "Successfully sent a reply to our end-client: " << bytes_sent << std::endl;
+
                         } else if (bytes_sent == 0) {
                             std::cout << "For some reason, our client is disconnected! (bytes_sent=0)\n";
                             perror("end_client");
-                            close_and_clean(client_fd, fd, epoll_fd, clients_to_proxy_socks_map, proxy_socks_to_client_map);
+                            close_and_clean(client_fd, fd, epoll_fd, clients_to_proxy_socks_map,
+                                            proxy_socks_to_client_map);
                         } else {
-                            std::cerr << "Error sending to client from proxy fd " << fd << ": " << strerror(errno) << std::endl;
-                            close_and_clean(client_fd, fd, epoll_fd, clients_to_proxy_socks_map, proxy_socks_to_client_map);
+                            std::cerr << "Error sending to client from proxy fd " << fd << ": " << strerror(errno)
+                                      << std::endl;
+                            close_and_clean(client_fd, fd, epoll_fd, clients_to_proxy_socks_map,
+                                            proxy_socks_to_client_map);
                         }
 
                     } else {

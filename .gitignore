@@ -20,3 +20,5 @@ tests
 .idea
 Testing/*
 build/
+test
+tests/
